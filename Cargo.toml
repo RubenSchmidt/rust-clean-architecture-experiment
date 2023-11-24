@@ -1,0 +1,25 @@
+[package]
+name = "hello_world"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotenv = "0.15"
+sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres", "uuid" ] }
+serde = "1.0"
+serde_json = "1.0"
+axum = {version = "0.6", features=["tracing", "http2"]}
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1.74"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0.75"
+uuid = {version = "1.6.1", features = [
+    "v7",                # Lets you generate random UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]}
+tower-http = {version = "0.4", features=["trace"]}
+tower = "0.4.13"
