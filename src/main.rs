@@ -1,16 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, str::FromStr};
 
 use app::AppImpl;
 use dotenv::dotenv;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{sqlite::{SqliteConnectOptions, SqlitePoolOptions}, ConnectOptions};
 
 mod app;
 mod domain;
 mod ports;
-mod postgres_repository;
-
+mod sqlite_repository;
+ 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
     let level = match std::env::var("LOG_LEVEL").unwrap_or_else(|_| "DEBUG".to_string()) {
@@ -20,32 +20,42 @@ async fn main() {
         ref s if s == "ERROR" => tracing::Level::ERROR,
         _ => tracing::Level::ERROR,
     };
-
+ 
     //tracing
     tracing_subscriber::fmt().with_max_level(level).init();
 
-    let db_connection_str = std::env::var("DATABASE_URL").unwrap().to_string();
-    // set up connection pool
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .acquire_timeout(Duration::from_secs(3))
+    let db_connection_str  = std::env::var("DATABASE_URL")?.to_string(); 
+
+    // check args if we are migrating or running the server
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        if args[1] == "migrate" {
+            let mut conn = SqliteConnectOptions::from_str(&db_connection_str)?
+                .create_if_missing(true)
+                .connect()
+                .await?;
+
+            sqlx::migrate!().run(&mut conn).await.unwrap();
+            return Ok(());
+        }
+    } 
+
+    // set up connection pool 
+   let pool = SqlitePoolOptions::new()
         .connect(&db_connection_str)
         .await
         .expect("can't connect to database");
-
-    sqlx::migrate!().run(&pool).await.unwrap();
-
-    let repo = postgres_repository::PgRepo::new(pool);
+    
+    let repo = sqlite_repository::SqliteRepo::new(pool);
 
     let app_state = Arc::new(AppImpl::new(Box::new(repo)));
 
     let router = ports::http::router(app_state);
 
-    let port = std::env::var("PORT").unwrap().to_string();
-    let adr = format!("127.0.0.1:{}", port);
-
+    let adr = std::env::var("LISTEN_ADDR").unwrap().to_string();
     axum::Server::bind(&adr.parse().unwrap())
         .serve(router.into_make_service())
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
+
 }
