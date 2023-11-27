@@ -1,15 +1,15 @@
 use crate::domain::errors::Error as AppError;
 use crate::domain::{entities::Todo, traits::Repo};
 use async_trait::async_trait;
-use sqlx::FromRow;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-pub struct SqliteRepo {
-    db: sqlx::SqlitePool
+pub struct PgRepo {
+    db: PgPool,
 }
 
-impl SqliteRepo {
-    pub fn new(db: sqlx::SqlitePool) -> Self {
+impl PgRepo {
+    pub fn new(db: PgPool) -> Self {
         Self { db }
     }
     async fn _get_todo_by_id(&self, id: String) -> Result<PgTodo, AppError> {
@@ -21,7 +21,7 @@ impl SqliteRepo {
         Ok(todo)
     }
 }
- 
+
 #[derive(FromRow)]
 struct PgTodo {
     id: Uuid,
@@ -30,7 +30,7 @@ struct PgTodo {
 }
 
 #[async_trait]
-impl Repo for SqliteRepo {
+impl Repo for PgRepo {
     async fn get_todos(&self) -> Result<Vec<Todo>, AppError> {
         let out = sqlx::query_as::<_, PgTodo>("SELECT * FROM todos ORDER BY id DESC")
             .fetch_all(&self.db)

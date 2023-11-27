@@ -1,14 +1,13 @@
-use std::{sync::Arc, str::FromStr};
+use std::{sync::Arc, time::Duration};
 
 use app::AppImpl;
 use dotenv::dotenv;
-use sqlx::{sqlite::{SqliteConnectOptions, SqlitePoolOptions}, ConnectOptions};
 
 mod app;
 mod domain;
 mod ports;
-mod sqlite_repository;
- 
+mod postgres_repository;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
@@ -20,42 +19,34 @@ async fn main() -> anyhow::Result<()> {
         ref s if s == "ERROR" => tracing::Level::ERROR,
         _ => tracing::Level::ERROR,
     };
- 
+
     //tracing
     tracing_subscriber::fmt().with_max_level(level).init();
 
-    let db_connection_str  = std::env::var("DATABASE_URL")?.to_string(); 
+    let db_connection_str = std::env::var("DATABASE_URL")?.to_string();
+    //pool with 3 sec timeout
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_connection_str)
+        .await?;
 
     // check args if we are migrating or running the server
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         if args[1] == "migrate" {
-            let mut conn = SqliteConnectOptions::from_str(&db_connection_str)?
-                .create_if_missing(true)
-                .connect()
-                .await?;
-
-            sqlx::migrate!().run(&mut conn).await.unwrap();
+            sqlx::migrate!().run(&pool).await?;
             return Ok(());
         }
-    } 
+    }
 
-    // set up connection pool 
-   let pool = SqlitePoolOptions::new()
-        .connect(&db_connection_str)
-        .await
-        .expect("can't connect to database");
-    
-    let repo = sqlite_repository::SqliteRepo::new(pool);
-
+    let repo = postgres_repository::PgRepo::new(pool);
     let app_state = Arc::new(AppImpl::new(Box::new(repo)));
-
     let router = ports::http::router(app_state);
 
-    let adr = std::env::var("LISTEN_ADDR").unwrap().to_string();
-    axum::Server::bind(&adr.parse().unwrap())
+    let adr = std::env::var("LISTEN_ADDR")?.to_string();
+    axum::Server::bind(&adr.parse()?)
         .serve(router.into_make_service())
         .await?;
     Ok(())
-
 }

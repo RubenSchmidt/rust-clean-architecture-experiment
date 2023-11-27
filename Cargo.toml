@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 dotenv = "0.15"
-sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "sqlite", "uuid"] }
+sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-native-tls", "postgres", "uuid"] }
 serde = "1.0"
 serde_json = "1.0"
 axum = {version = "0.6", features=["tracing", "http2"]}
