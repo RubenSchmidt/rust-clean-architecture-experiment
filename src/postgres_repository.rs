@@ -36,13 +36,13 @@ impl Repo for PgRepo {
             .fetch_all(&self.db)
             .await?
             .into_iter()
-            .map(to_domain)
+            .map(|todo| todo.into())
             .collect();
         Ok(out)
     }
 
     async fn insert_todo(&self, todo: Todo) -> Result<Todo, AppError> {
-        let todo = from_domain(todo)?;
+        let todo: PgTodo = todo.into();
         let todo = sqlx::query_as::<_, PgTodo>(
             "INSERT INTO todos (id, title, completed) VALUES ($1, $2, false) RETURNING *",
         )
@@ -51,11 +51,11 @@ impl Repo for PgRepo {
         .bind(todo.completed)
         .fetch_one(&self.db)
         .await?;
-        Ok(to_domain(todo))
+        Ok(todo.into())
     }
 
     async fn get_todo_by_id(&self, id: String) -> Result<Todo, AppError> {
-        self._get_todo_by_id(id).await.map(to_domain)
+        self._get_todo_by_id(id).await.map(|todo| todo.into())
     }
 
     async fn update_todo_by_id(
@@ -64,8 +64,8 @@ impl Repo for PgRepo {
         update_fn: fn(Todo) -> Todo,
     ) -> Result<Todo, AppError> {
         let todo = self._get_todo_by_id(id).await?;
-        let todo = update_fn(to_domain(todo));
-        let todo = from_domain(todo)?;
+        let todo = update_fn(todo.into());
+        let todo: PgTodo = todo.into();
 
         let todo = sqlx::query_as::<_, PgTodo>(
             "UPDATE todos SET (title, completed) = ($1, $2) WHERE id = $3 RETURNING *",
@@ -76,21 +76,8 @@ impl Repo for PgRepo {
         .fetch_one(&self.db)
         .await?;
 
-        Ok(to_domain(todo))
+        Ok(todo.into())
     }
-}
-
-fn from_domain(todo: Todo) -> Result<PgTodo, AppError> {
-    let id = Uuid::parse_str(&todo.id())?;
-    Ok(PgTodo {
-        id,
-        title: todo.title().clone(),
-        completed: todo.completed(),
-    })
-}
-
-fn to_domain(todo: PgTodo) -> Todo {
-    Todo::from_data_storage(todo.id.to_string(), todo.title, todo.completed)
 }
 
 impl From<uuid::Error> for AppError {
@@ -108,6 +95,21 @@ impl From<sqlx::Error> for AppError {
         match inner {
             sqlx::Error::RowNotFound => return AppError::NotFound,
             _ => AppError::Internal,
+        }
+    }
+}
+
+impl From<PgTodo> for Todo {
+    fn from(todo: PgTodo) -> Self {
+        Self::from_data_storage(todo.id.to_string(), todo.title, todo.completed)
+    }
+}
+impl From<Todo> for PgTodo {
+    fn from(todo: Todo) -> Self {
+        Self {
+            id: Uuid::parse_str(todo.id()).unwrap(),
+            title: todo.title().to_string(),
+            completed: todo.completed(),
         }
     }
 }

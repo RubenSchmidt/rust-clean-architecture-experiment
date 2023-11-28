@@ -9,7 +9,7 @@ mod ports;
 mod postgres_repository;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
     let level = match std::env::var("LOG_LEVEL").unwrap_or_else(|_| "DEBUG".to_string()) {
@@ -21,7 +21,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     //tracing
-    tracing_subscriber::fmt().with_max_level(level).init();
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_target(false)
+        .init();
 
     let db_connection_str = std::env::var("DATABASE_URL")?.to_string();
     //pool with 3 sec timeout
