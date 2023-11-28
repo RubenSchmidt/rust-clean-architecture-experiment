@@ -40,7 +40,7 @@ async fn get_todos(
     State(app): State<Arc<impl App>>,
 ) -> Result<Json<Vec<TodoResponse>>, domain::errors::Error> {
     let todos = app.get_todos().await?;
-    let todos = todos.into_iter().map(from_domain).collect();
+    let todos = todos.into_iter().map(Into::into).collect();
     Ok(Json(todos))
 }
 
@@ -49,7 +49,7 @@ async fn get_todo(
     Path(id): Path<String>,
 ) -> Result<Json<TodoResponse>, domain::errors::Error> {
     let todo = app.get_todo_by_id(id).await?;
-    Ok(Json(from_domain(todo)))
+    Ok(Json(todo.into()))
 }
 
 async fn create_todo(
@@ -57,7 +57,7 @@ async fn create_todo(
     Json(todo): Json<CreateTodoRequest>,
 ) -> Result<Json<TodoResponse>, domain::errors::Error> {
     let todo = app.create_todo(todo.title).await?;
-    Ok(Json(from_domain(todo)))
+    Ok(Json(todo.into()))
 }
 
 async fn complete_todo(
@@ -65,14 +65,16 @@ async fn complete_todo(
     Path(id): Path<String>,
 ) -> Result<Json<TodoResponse>, domain::errors::Error> {
     let todo = app.complete_todo_by_id(id).await?;
-    Ok(Json(from_domain(todo)))
+    Ok(Json(todo.into()))
 }
 
-fn from_domain(todo: Todo) -> TodoResponse {
-    TodoResponse {
-        id: todo.id().clone(),
-        title: todo.title().clone(),
-        completed: todo.completed(),
+impl From<Todo> for TodoResponse {
+    fn from(todo: Todo) -> Self {
+        Self {
+            id: todo.id().clone(),
+            title: todo.title().clone(),
+            completed: todo.completed(),
+        }
     }
 }
 

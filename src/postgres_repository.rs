@@ -36,7 +36,7 @@ impl Repo for PgRepo {
             .fetch_all(&self.db)
             .await?
             .into_iter()
-            .map(|todo| todo.into())
+            .map(Into::into)
             .collect();
         Ok(out)
     }
@@ -55,7 +55,7 @@ impl Repo for PgRepo {
     }
 
     async fn get_todo_by_id(&self, id: String) -> Result<Todo, AppError> {
-        self._get_todo_by_id(id).await.map(|todo| todo.into())
+        self._get_todo_by_id(id).await.map(Into::into)
     }
 
     async fn update_todo_by_id(
